@@ -1,26 +1,54 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fetchLatestReadings } from "@/lib/api";
 import { JaulaData, getSensorStatus, RISK_MESSAGES, LIFECYCLE_PHASES } from "@/lib/constants";
 import SensorCard from "@/components/SensorCard";
 import AlertBadge, { StatusSummary } from "@/components/AlertBadge";
 import { Activity, Clock, Egg, TrendingUp } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const [data, setData] = useState<JaulaData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentDay] = useState(18); // Simulated current day
+  const [currentDay] = useState(18); // Día simulado del ciclo de vida
+
+  // Herramientas para las notificaciones push
+  const { toast } = useToast();
+  const notifiedAlerts = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     const load = async () => {
       const result = await fetchLatestReadings();
       setData(result);
       setLoading(false);
-    };
-    load();
-    const interval = setInterval(load, 180000); // 3 minutes
-    return () => clearInterval(interval);
-  }, []);
 
+      // Escáner de peligros para lanzar notificaciones visuales (Toasts)
+      if (result && result.lecturas) {
+        result.lecturas.forEach((r: any) => {
+          const status = getSensorStatus(r.nombre, r.valor);
+          
+          // Si hay un peligro y no lo hemos notificado aún en esta sesión
+          if (status === "danger" && !notifiedAlerts.current.has(r.id_sensor)) {
+            toast({
+              variant: "destructive",
+              title: `⚠️ Alerta Crítica en la Jaula #1`,
+              description: `El sensor de ${r.nombre} registra ${r.valor}${r.unidad}. Revisa la ventilación inmediatamente.`,
+            });
+            notifiedAlerts.current.add(r.id_sensor); // Marcamos como notificado
+          } 
+          // Si el sensor vuelve a la normalidad, lo sacamos de la lista negra
+          else if (status !== "danger") {
+            notifiedAlerts.current.delete(r.id_sensor);
+          }
+        });
+      }
+    };
+    
+    load();
+    const interval = setInterval(load, 180000); // Se actualiza cada 3 minutos
+    return () => clearInterval(interval);
+  }, [toast]);
+
+  // Cálculos para la fase actual y las alertas en la tabla
   const currentPhase = LIFECYCLE_PHASES.find(
     (p: any) => currentDay >= p.dayRange[0] && currentDay <= p.dayRange[1]
   ) || LIFECYCLE_PHASES[0];
@@ -55,7 +83,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header section */}
+      {/* Sección del encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Panel de Control</h2>
@@ -63,14 +91,14 @@ export default function Dashboard() {
             Monitoreo en tiempo real · Jaula #1
           </p>
         </div>
-            <StatusSummary
-        normalCount={normalCount}
-        warningCount={alerts.filter((a: any) => a.status === "warning").length}
-        dangerCount={alerts.filter((a: any) => a.status === "danger").length}
-      />
+        <StatusSummary
+          normalCount={normalCount}
+          warningCount={alerts.filter((a: any) => a.status === "warning").length}
+          dangerCount={alerts.filter((a: any) => a.status === "danger").length}
+        />
       </div>
 
-      {/* Phase indicator */}
+      {/* Indicador de fase biológica */}
       <div className="rounded-xl border bg-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 opacity-0 animate-slide-up">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${currentPhase.color}15` }}>
@@ -99,14 +127,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-          {/* Sensor cards grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      {/* Cuadrícula de Tarjetas de Sensores (Donde están los velocímetros) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {data?.lecturas.map((reading: any, i: number) => (
           <SensorCard key={reading.id_sensor} reading={reading} index={i} />
         ))}
       </div>
 
-      {/* Alerts section */}
+      {/* Sección inferior de Alertas Activas */}
       {alerts.length > 0 && (
         <div className="rounded-xl border bg-card p-5 space-y-3 opacity-0 animate-slide-up stagger-3">
           <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -131,7 +159,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Quick stats */}
+      {/* Estadísticas rápidas inferiores */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <QuickStat
           label="Sensores Activos"
