@@ -22,11 +22,11 @@ export default function Dashboard() {
   }, []);
 
   const currentPhase = LIFECYCLE_PHASES.find(
-    (p) => currentDay >= p.dayRange[0] && currentDay <= p.dayRange[1]
+    (p: any) => currentDay >= p.dayRange[0] && currentDay <= p.dayRange[1]
   ) || LIFECYCLE_PHASES[0];
 
   const alerts = data?.lecturas
-    .map((r) => {
+    .map((r: any) => {
       const status = getSensorStatus(r.nombre, r.valor);
       const riskMsg = RISK_MESSAGES[r.nombre];
       const message = status !== "normal"
@@ -34,7 +34,7 @@ export default function Dashboard() {
         : "";
       return { ...r, status, message: message || "" };
     })
-    .filter((a) => a.status !== "normal") || [];
+    .filter((a: any) => a.status !== "normal") || [];
 
   const normalCount = (data?.lecturas.length || 0) - alerts.length;
 
@@ -63,11 +63,11 @@ export default function Dashboard() {
             Monitoreo en tiempo real · Jaula #1
           </p>
         </div>
-        <StatusSummary
-          normalCount={normalCount}
-          warningCount={alerts.filter((a) => a.status === "warning").length}
-          dangerCount={alerts.filter((a) => a.status === "danger").length}
-        />
+            <StatusSummary
+        normalCount={normalCount}
+        warningCount={alerts.filter((a: any) => a.status === "warning").length}
+        dangerCount={alerts.filter((a: any) => a.status === "danger").length}
+      />
       </div>
 
       {/* Phase indicator */}
@@ -99,9 +99,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Sensor cards grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {data?.lecturas.map((reading, i) => (
+          {/* Sensor cards grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {data?.lecturas.map((reading: any, i: number) => (
           <SensorCard key={reading.id_sensor} reading={reading} index={i} />
         ))}
       </div>
@@ -117,7 +117,7 @@ export default function Dashboard() {
             Alertas Activas ({alerts.length})
           </h3>
           <div className="space-y-2">
-            {alerts.map((alert) => (
+            {alerts.map((alert: any) => (
               <AlertBadge
                 key={alert.id_sensor}
                 status={alert.status}
