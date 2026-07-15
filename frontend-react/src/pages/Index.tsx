@@ -44,7 +44,7 @@ export default function Dashboard() {
     };
     
     load();
-    const interval = setInterval(load, 180000); // Se actualiza cada 3 minutos
+    const interval = setInterval(load, 10000); // 10 segundos // Se actualiza cada 3 minutos
     return () => clearInterval(interval);
   }, [toast]);
 

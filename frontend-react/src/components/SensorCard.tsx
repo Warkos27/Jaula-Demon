@@ -137,7 +137,7 @@ export default function SensorCard({ reading, index }: { reading: SensorReading;
   
   // COLOR DEL ESTADO (Verde, Naranja, Rojo) para medidores y alertas
   const statusColor = getStatusColor(status);
-  
+
   // COLOR BASE DEL SENSOR (Rojo, Azul, Ámbar) para el ícono
   const sensorIdentityColor = colorMap[reading.nombre] || "#ffffff";
   

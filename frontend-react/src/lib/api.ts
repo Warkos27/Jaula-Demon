@@ -17,15 +17,35 @@ function generateSimulatedData(): JaulaData {
 
 export async function fetchLatestReadings(): Promise<JaulaData> {
   try {
-    const response = await fetch(`${API_URL}/lecturas`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
-    if (!response.ok) throw new Error("API error");
-    const data = await response.json();
-    return { ...data, timestamp: new Date().toISOString() };
-  } catch {
-    // Return simulated data when API is unavailable
+    // 1. Hacemos la petición GET a la API real de AWS de tu amigo
+    const response = await fetch(`${API_URL}/lecturas`);
+    
+    if (!response.ok) {
+      console.error(`Error de AWS: ${response.status}`);
+      throw new Error("AWS API no respondió correctamente");
+    }
+    
+    // 2. Recibimos la respuesta pura de AWS
+    const rawData = await response.json();
+    console.log("✅ ¡Datos reales recibidos de AWS!", rawData);
+    
+    // 3. LA SOLUCIÓN: Si AWS nos manda los datos dentro de una lista [ ], sacamos el primer paquete
+    let finalData = rawData;
+    if (Array.isArray(rawData) && rawData.length > 0) {
+      // Tomamos el registro más reciente (el último o el único de la lista)
+      finalData = rawData[rawData.length - 1]; 
+    }
+
+    // 4. Protección extra: Si la base de datos está vacía, forzamos un error para usar el simulador
+    if (!finalData || !finalData.lecturas) {
+      throw new Error("AWS respondió, pero no contiene el formato de 'lecturas' esperado.");
+    }
+    
+    return { ...finalData, timestamp: new Date().toISOString() };
+    
+  } catch (error) {
+    // 5. Si algo falla o el formato es incorrecto, el simulador nos salva
+    console.error("❌ Falló la conexión a AWS o el formato. Activando simulador visual de respaldo...", error);
     return generateSimulatedData();
   }
 }
