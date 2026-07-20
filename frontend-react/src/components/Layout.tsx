@@ -9,6 +9,7 @@ import {
   Menu,
   X,
   Egg,
+  Settings,
 } from "lucide-react";
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
   { path: "/history", label: "Historial", icon: LineChart },
   { path: "/alerts", label: "Alertas", icon: AlertTriangle },
   { path: "/sensor-map", label: "Mapa Sensores", icon: Map },
+  { path: "/administrative", label: "Administrativo", icon: Settings },
 ];
 
 function LogoSvg() {
