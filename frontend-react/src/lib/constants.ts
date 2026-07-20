@@ -120,21 +120,84 @@ export const RISK_MESSAGES: Record<string, { high: string; low: string }> = {
   },
 };
 
-export type SensorStatus = "normal" | "warning" | "danger";
+export type SensorStatus = "anormal" | "normal" | "warning" | "danger";
 
-export function getSensorStatus(name: string, value: number): SensorStatus {
-  const threshold = SENSOR_THRESHOLDS[name];
+// Interfaz para la configuración de AWS
+export interface ConfiguracionAWS {
+  temp_min?: number;
+  temp_max?: number;
+  hum_min?: number;
+  hum_max?: number;
+  luz_min?: number;
+  luz_max?: number;
+  amon_max?: number;
+  co2_max?: number;
+  [key: string]: any;
+}
+
+// Función para convertir la configuración de AWS al formato de SENSOR_THRESHOLDS
+export function convertirConfiguracionAWS(config: ConfiguracionAWS | null): Record<string, SensorThreshold> {
+  if (!config) return SENSOR_THRESHOLDS;
+  
+  return {
+    Temperatura: {
+      min: config.temp_min ?? 20,
+      max: config.temp_max ?? 33,
+      dangerMin: (config.temp_min ?? 20) - 5,
+      dangerMax: (config.temp_max ?? 33) + 5,
+      unit: "°C",
+    },
+    Humedad: {
+      min: config.hum_min ?? 45,
+      max: config.hum_max ?? 70,
+      dangerMin: (config.hum_min ?? 45) - 15,
+      dangerMax: (config.hum_max ?? 70) + 10,
+      unit: "%",
+    },
+    Luminosidad: {
+      min: config.luz_min ?? 20,
+      max: config.luz_max ?? 50,
+      dangerMin: (config.luz_min ?? 20) - 15,
+      dangerMax: (config.luz_max ?? 50) + 50,
+      unit: "lx",
+    },
+    Amoniaco: {
+      min: 0,
+      max: config.amon_max ?? 25,
+      dangerMax: (config.amon_max ?? 25) + 15,
+      unit: "ppm",
+    },
+    CO2: {
+      min: 0,
+      max: config.co2_max ?? 2000,
+      dangerMax: (config.co2_max ?? 2000) + 1000,
+      unit: "ppm",
+    },
+  };
+}
+
+// Función mejorada que acepta configuración dinámica
+export function getSensorStatus(name: string, value: number, dynamicThresholds?: Record<string, SensorThreshold>): SensorStatus {
+  const thresholds = dynamicThresholds || SENSOR_THRESHOLDS;
+  const threshold = thresholds[name];
   if (!threshold) return "normal";
 
+  // Peligro
   if (threshold.dangerMax && value >= threshold.dangerMax) return "danger";
   if (threshold.dangerMin && value <= threshold.dangerMin) return "danger";
+  
+  // Advertencia (arriba del max)
   if (value > threshold.max) return "warning";
-  if (value < threshold.min) return "warning";
+  
+  // Anormal (bajo mínimo pero sin llegar a peligro)
+  if (value < threshold.min && (!threshold.dangerMin || value > threshold.dangerMin)) return "anormal";
+  
   return "normal";
 }
 
 export function getStatusColor(status: SensorStatus): string {
   switch (status) {
+    case "anormal": return "#1783ff";
     case "normal": return "#22c55e";
     case "warning": return "#f59e0b";
     case "danger": return "#ef4444";

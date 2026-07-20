@@ -1,4 +1,4 @@
-import { SensorReading, getSensorStatus, getStatusColor, SENSOR_THRESHOLDS } from "@/lib/constants";
+import { SensorReading, getSensorStatus, getStatusColor, SENSOR_THRESHOLDS, SensorThreshold } from "@/lib/constants";
 import { Thermometer, Droplets, Sun, Wind, Cloud } from "lucide-react";
 
 // 1. Identidad única para cada sensor (Íconos y Colores Base)
@@ -132,8 +132,8 @@ function ThermometerGauge({ percentage, statusColor, value, unit }: { percentage
 // --------------------------------------------------------
 // TARJETA PRINCIPAL DEL SENSOR
 // --------------------------------------------------------
-export default function SensorCard({ reading, index }: { reading: SensorReading; index: number }) {
-  const status = getSensorStatus(reading.nombre, reading.valor);
+export default function SensorCard({ reading, index, thresholds }: { reading: SensorReading; index: number; thresholds?: Record<string, SensorThreshold> }) {
+  const status = getSensorStatus(reading.nombre, reading.valor, thresholds);
   
   // COLOR DEL ESTADO (Verde, Naranja, Rojo) para medidores y alertas
   const statusColor = getStatusColor(status);
@@ -142,10 +142,10 @@ export default function SensorCard({ reading, index }: { reading: SensorReading;
   const sensorIdentityColor = colorMap[reading.nombre] || "#ffffff";
   
   const Icon = iconMap[reading.nombre] || Cloud;
-  const threshold = SENSOR_THRESHOLDS[reading.nombre];
+  const thresholdData = (thresholds || SENSOR_THRESHOLDS)[reading.nombre];
 
-  const maxLim = threshold?.dangerMax || threshold?.max || 100;
-  const minLim = threshold?.dangerMin || threshold?.min || 0;
+  const maxLim = thresholdData?.dangerMax || thresholdData?.max || 100;
+  const minLim = thresholdData?.dangerMin || thresholdData?.min || 0;
   const percentage = Math.min(100, Math.max(0, ((reading.valor - minLim) / (maxLim - minLim)) * 100));
 
   const isTemp = reading.nombre === "Temperatura";
@@ -193,11 +193,11 @@ export default function SensorCard({ reading, index }: { reading: SensorReading;
       </div>
 
       {/* Rango inferior */}
-      {threshold && (
+      {thresholdData && (
         <div className="flex justify-between items-center w-full text-[11px] font-medium text-muted-foreground bg-secondary/30 py-1.5 px-3 rounded-lg border border-border/50 mt-2 relative z-10">
-          <span>Min: <strong className="text-foreground">{threshold.min}</strong></span>
+          <span>Min: <strong className="text-foreground">{thresholdData.min}</strong></span>
           <span>Rango Normal</span>
-          <span>Max: <strong className="text-foreground">{threshold.max}</strong></span>
+          <span>Max: <strong className="text-foreground">{thresholdData.max}</strong></span>
         </div>
       )}
     </div>

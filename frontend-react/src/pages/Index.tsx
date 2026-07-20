@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { fetchLatestReadings, fetchConfiguracionEtapa } from "@/lib/api";
-import { JaulaData, getSensorStatus } from "@/lib/constants";
+import { JaulaData, getSensorStatus, convertirConfiguracionAWS } from "@/lib/constants";
 import SensorCard from "@/components/SensorCard";
-import AlertBadge from "@/components/AlertBadge"; // <-- Corregido: StatusSummary eliminado
+import AlertBadge from "@/components/AlertBadge";
 import { useToast } from "@/hooks/use-toast";
 import { Database, AlertTriangle } from "lucide-react";
 
@@ -15,6 +15,8 @@ export default function Dashboard() {
   const [data, setData] = useState<JaulaData | null>(null);
   const [configAWS, setConfigAWS] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // 3. Thresholds dinámicos derivados de la configuración
+  const [dynamicThresholds, setDynamicThresholds] = useState<any>(null);
 
   const { toast } = useToast();
   const notifiedAlerts = useRef<Set<number>>(new Set());
@@ -24,6 +26,12 @@ export default function Dashboard() {
     const loadConfig = async () => {
       const conf = await fetchConfiguracionEtapa(etapa);
       setConfigAWS(conf);
+      // Convertir la configuración de AWS a thresholds dinámicos
+      if (conf) {
+        const thresholds = convertirConfiguracionAWS(conf);
+        setDynamicThresholds(thresholds);
+        console.log("✅ Configuración de AWS cargada para etapa:", etapa, conf);
+      }
     };
     loadConfig();
   }, [etapa]);
@@ -37,12 +45,14 @@ export default function Dashboard() {
 
       if (result && result.lecturas) {
         result.lecturas.forEach((r: any) => {
-          const status = getSensorStatus(r.nombre, r.valor);
+          // Usar los thresholds dinámicos si existen, si no, usar los por defecto
+          const status = getSensorStatus(r.nombre, r.valor, dynamicThresholds);
           if (status === "danger" && !notifiedAlerts.current.has(r.id_sensor)) {
             toast({
               variant: "destructive",
               title: `⚠️ Alerta Crítica en la Jaula #${selectedJaula}`,
               description: `El sensor de ${r.nombre} registra ${r.valor}${r.unidad}. Acción requerida.`,
+              duration: 25000,
             });
             notifiedAlerts.current.add(r.id_sensor);
           } else if (status !== "danger") {
@@ -56,12 +66,12 @@ export default function Dashboard() {
     // Petición a la base de datos cada 10 segundos
     const interval = setInterval(loadSensores, 2000); 
     return () => clearInterval(interval);
-  }, [selectedJaula, toast]);
+  }, [selectedJaula, toast, dynamicThresholds]);
 
   // Cálculos de Alertas
   const alerts = data?.lecturas
     .map((r: any) => {
-      const status = getSensorStatus(r.nombre, r.valor);
+      const status = getSensorStatus(r.nombre, r.valor, dynamicThresholds);
       return { ...r, status, message: status !== "normal" ? "Revisar parámetros fuera de rango" : "" };
     })
     .filter((a: any) => a.status !== "normal") || [];
@@ -164,7 +174,7 @@ export default function Dashboard() {
           {/* ---------------- CUADRÍCULA DE SENSORES ---------------- */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {data.lecturas.map((reading: any, i: number) => (
-              <SensorCard key={reading.id_sensor || i} reading={reading} index={i} />
+              <SensorCard key={reading.id_sensor || i} reading={reading} index={i} thresholds={dynamicThresholds} />
             ))}
           </div>
 

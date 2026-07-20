@@ -4,7 +4,7 @@ import tailwindcssAspectRatio from '@tailwindcss/aspect-ratio';
 import tailwindcssTypography from '@tailwindcss/typography';
 
 export default {
-  darkMode: ['class'],
+  darkMode: 'class',
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',

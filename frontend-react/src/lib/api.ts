@@ -54,6 +54,6 @@ export async function fetchLatestReadings(jaulaId: number = 1): Promise<JaulaDat
 
 // Función 3: EL PARCHE QUE FALTABA PARA QUE HISTORY.TSX NO COLAPSE
 // Por ahora devolvemos un arreglo vacío. Más adelante conectaremos esto a AWS.
-export function generateHistoricalData(hours: number = 24): Array<{ time: string; readings: SensorReading[] }> {
+export function generateHistoricalData(_hours: number = 24): Array<{ time: string; readings: SensorReading[] }> {
   return []; 
 }

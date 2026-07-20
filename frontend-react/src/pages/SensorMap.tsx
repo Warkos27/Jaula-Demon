@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { fetchLatestReadings } from "@/lib/api";
-import { JaulaData, getSensorStatus, getStatusColor, SENSOR_INFO } from "@/lib/constants";
+import { fetchLatestReadings, fetchConfiguracionEtapa } from "@/lib/api";
+import { JaulaData, getSensorStatus, getStatusColor, convertirConfiguracionAWS } from "@/lib/constants";
 
 interface SensorPosition {
   id: number;
@@ -33,6 +33,19 @@ const sensorPositions: SensorPosition[] = [
 export default function SensorMap() {
   const [data, setData] = useState<JaulaData | null>(null);
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null);
+  const [etapa] = useState<string>('pollitos_semana_1');
+  const [dynamicThresholds, setDynamicThresholds] = useState<any>(null);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      const conf = await fetchConfiguracionEtapa(etapa);
+      if (conf) {
+        const thresholds = convertirConfiguracionAWS(conf);
+        setDynamicThresholds(thresholds);
+      }
+    };
+    loadConfig();
+  }, [etapa]);
 
   useEffect(() => {
     const load = async () => {
@@ -115,7 +128,7 @@ export default function SensorMap() {
             {/* Sensor nodes */}
             {sensorPositions.map((pos) => {
               const reading = getSensorReading(pos);
-              const status = reading ? getSensorStatus(reading.nombre, reading.valor) : "normal";
+              const status = reading ? getSensorStatus(reading.nombre, reading.valor, dynamicThresholds) : "normal";
               const color = getStatusColor(status);
               const isSelected = selectedSensor === pos.id;
 
@@ -151,7 +164,7 @@ export default function SensorMap() {
             {selectedSensor ? `Sensor: ${sensorPositions.find((s) => s.id === selectedSensor)?.name}` : "Selecciona un sensor"}
           </h3>
           {selectedSensor ? (
-            <SensorDetail position={sensorPositions.find((s) => s.id === selectedSensor)!} reading={getSensorReading(sensorPositions.find((s) => s.id === selectedSensor)!)} />
+            <SensorDetail position={sensorPositions.find((s) => s.id === selectedSensor)!} reading={getSensorReading(sensorPositions.find((s) => s.id === selectedSensor)!)} dynamicThresholds={dynamicThresholds} />
           ) : (
             <div className="text-center py-8">
               <svg className="w-16 h-16 mx-auto mb-3 opacity-20" viewBox="0 0 48 48" fill="none">
@@ -197,10 +210,10 @@ export default function SensorMap() {
   );
 }
 
-function SensorDetail({ position, reading }: { position: SensorPosition; reading: { nombre: string; valor: number; unidad: string } | null }) {
+function SensorDetail({ position, reading, dynamicThresholds }: { position: SensorPosition; reading: { nombre: string; valor: number; unidad: string } | null; dynamicThresholds?: any }) {
   if (!reading) return <p className="text-sm text-muted-foreground">Sin datos</p>;
 
-  const status = getSensorStatus(reading.nombre, reading.valor);
+  const status = getSensorStatus(reading.nombre, reading.valor, dynamicThresholds);
   const color = getStatusColor(status);
 
   return (

@@ -40,7 +40,7 @@ type SeoMeta = {
   tags?: string[];
 };
 
-const markdownModules = import.meta.glob(
+const markdownModules = (import.meta as any).glob(
   ['../../seo/content/**/*.md'],
   {
     query: '?raw',
@@ -186,20 +186,20 @@ function getBlogRoute(slug: string) {
 }
 
 function getSiteDomainUrl() {
-  const configuredUrl = import.meta.env.VITE_SITE_URL?.trim();
+  const configuredUrl = (import.meta as any).env?.VITE_SITE_URL?.trim();
   return configuredUrl ? configuredUrl.replace(/\/+$/, '') : undefined;
 }
 
 function getSiteName() {
-  return import.meta.env.VITE_APP_TITLE?.trim() || 'Atoms';
+  return (import.meta as any).env?.VITE_APP_TITLE?.trim() || 'Atoms';
 }
 
 function getTwitterSiteHandle() {
-  return import.meta.env.VITE_TWITTER_SITE?.trim() || '@atoms';
+  return (import.meta as any).env?.VITE_TWITTER_SITE?.trim() || '@atoms';
 }
 
 function getTwitterCreatorHandle() {
-  return import.meta.env.VITE_TWITTER_CREATOR?.trim() || getTwitterSiteHandle();
+  return (import.meta as any).env?.VITE_TWITTER_CREATOR?.trim() || getTwitterSiteHandle();
 }
 
 function getAbsoluteUrl(pathname: string) {

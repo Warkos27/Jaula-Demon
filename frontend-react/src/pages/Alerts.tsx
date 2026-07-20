@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { fetchLatestReadings } from "@/lib/api";
-import { JaulaData, getSensorStatus, RISK_MESSAGES, SENSOR_THRESHOLDS, SENSOR_INFO, SensorStatus } from "@/lib/constants";
+import { fetchLatestReadings, fetchConfiguracionEtapa } from "@/lib/api";
+import { JaulaData, getSensorStatus, convertirConfiguracionAWS, RISK_MESSAGES, SENSOR_THRESHOLDS, SENSOR_INFO, SensorStatus } from "@/lib/constants";
 import { AlertTriangle, AlertCircle, CheckCircle, Shield, Bell, Clock } from "lucide-react";
 
 interface AlertEntry {
@@ -17,6 +17,19 @@ interface AlertEntry {
 export default function Alerts() {
   const [data, setData] = useState<JaulaData | null>(null);
   const [alertHistory, setAlertHistory] = useState<AlertEntry[]>([]);
+  const [etapa] = useState<string>('pollitos_semana_1');
+  const [dynamicThresholds, setDynamicThresholds] = useState<any>(null);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      const conf = await fetchConfiguracionEtapa(etapa);
+      if (conf) {
+        const thresholds = convertirConfiguracionAWS(conf);
+        setDynamicThresholds(thresholds);
+      }
+    };
+    loadConfig();
+  }, [etapa]);
 
   useEffect(() => {
     const load = async () => {
@@ -24,9 +37,10 @@ export default function Alerts() {
       setData(result);
 
       // Build alert history
+      if (!result) return;
       const newAlerts: AlertEntry[] = result.lecturas
         .map((r) => {
-          const status = getSensorStatus(r.nombre, r.valor);
+          const status = getSensorStatus(r.nombre, r.valor, dynamicThresholds);
           const riskMsg = RISK_MESSAGES[r.nombre];
           const sensorInfo = SENSOR_INFO.find((s) => s.id === r.id_sensor);
           if (status === "normal") return null;
@@ -36,7 +50,7 @@ export default function Alerts() {
             value: r.valor,
             unit: r.unidad,
             status,
-            message: r.valor > (SENSOR_THRESHOLDS[r.nombre]?.max || 0) ? riskMsg?.high || "" : riskMsg?.low || riskMsg?.high || "",
+            message: r.valor > ((dynamicThresholds?.[r.nombre]?.max) || (SENSOR_THRESHOLDS[r.nombre]?.max) || 0) ? riskMsg?.high || "" : riskMsg?.low || riskMsg?.high || "",
             timestamp: new Date().toLocaleTimeString("es-ES"),
             color: sensorInfo?.color || "#22c55e",
           };
@@ -48,7 +62,7 @@ export default function Alerts() {
     load();
     const interval = setInterval(load, 180000);
     return () => clearInterval(interval);
-  }, []);
+  }, [dynamicThresholds]);
 
   const currentAlerts = data?.lecturas
     .map((r) => ({
