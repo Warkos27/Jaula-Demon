@@ -13,6 +13,10 @@ import {
   Cell,
   Tooltip,
   Legend,
+  Treemap,
+  ComposedChart,
+  ScatterChart,
+  Scatter,
   BarChart,
   Bar,
   XAxis,
@@ -259,6 +263,107 @@ export default function Administrative() {
       setSubmitting(false);
     }
   }
+
+    const ventasConAcumulado = (() => {
+      if (!reporteResumen?.ventas_por_fecha || !Array.isArray(reporteResumen.ventas_por_fecha)) return [] as Array<any>;
+      const arr = [...reporteResumen.ventas_por_fecha]
+        .map((r: any) => ({ fecha: r.fecha, ingreso_total: Number(r.ingreso_total ?? 0) }))
+        .sort((a: any, b: any) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+      let cum = 0;
+      return arr.map((it: any) => {
+        cum += it.ingreso_total ?? 0;
+        return { ...it, acumulado: Number(cum.toFixed(2)) };
+      });
+    })();
+
+    const gastosStackData = (() => {
+      const tipos = (reporteResumen?.gastos_por_tipo ?? []).map((g: any) => String(g.tipo_gasto));
+      if (tipos.length === 0) return [] as any[];
+
+      // If backend provided grouping by lote (expected shape: [{id_lote, tipo_gasto, monto_total}])
+      if (Array.isArray((reporteResumen as any).gastos_por_tipo_por_lote) && (reporteResumen as any).gastos_por_tipo_por_lote.length) {
+        const rows = (reporteResumen as any).gastos_por_tipo_por_lote;
+        const byLote: Record<string, any> = {};
+        rows.forEach((r: any) => {
+          const loteKey = `Lote ${r.id_lote}`;
+          byLote[loteKey] = byLote[loteKey] || { lote: loteKey };
+          byLote[loteKey][r.tipo_gasto] = (byLote[loteKey][r.tipo_gasto] || 0) + Number(r.monto_total ?? 0);
+        });
+        return Object.values(byLote);
+      }
+
+      // Fallback: single-row with types as keys using total per tipo
+      const totalRow: any = { grupo: "Total" };
+      (reporteResumen?.gastos_por_tipo ?? []).forEach((g: any) => {
+        totalRow[String(g.tipo_gasto)] = Number(g.monto_total ?? 0);
+      });
+      return [totalRow];
+    })();
+
+    const mortalidadHeatmap = (() => {
+      const days = 35; // show last 35 days (5 weeks)
+      const todayDate = new Date();
+      const dates: string[] = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(todayDate);
+        d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().slice(0, 10));
+      }
+
+      const counts: Record<string, number> = {};
+
+      // prefer backend-provided daily mortalidad if available
+      if (Array.isArray((reporteResumen as any)?.mortalidad_por_fecha) && (reporteResumen as any).mortalidad_por_fecha.length) {
+        (reporteResumen as any).mortalidad_por_fecha.forEach((r: any) => {
+          const key = String(r.fecha).slice(0, 10);
+          counts[key] = (counts[key] || 0) + Number(r.cantidad ?? r.cantidad_bajas ?? 0);
+        });
+      } else if (reporteResumen?.bajas_totales) {
+        // fallback: distribute total bajas over the window evenly
+        const total = Number(reporteResumen.bajas_totales ?? 0);
+        const base = Math.floor(total / days);
+        let rem = total - base * days;
+        dates.forEach((dt) => {
+          counts[dt] = base + (rem > 0 ? 1 : 0);
+          if (rem > 0) rem -= 1;
+        });
+      }
+
+      const max = Math.max(...dates.map((d) => counts[d] || 0), 1);
+
+      return { dates, counts, max };
+    })();
+
+    const treemapData = (() => {
+      if (!reporteResumen?.gastos_por_tipo || !Array.isArray(reporteResumen.gastos_por_tipo)) return [] as any[];
+      return reporteResumen.gastos_por_tipo.map((g: any) => ({ name: String(g.tipo_gasto), size: Number(g.monto_total ?? 0) }));
+    })();
+
+    const scatterData = (() => {
+      // Prefer detalle de ventas si el backend lo devuelve
+      const det = (reporteResumen as any)?.ventas_detalle || (reporteResumen as any)?.ventas || (reporteResumen as any)?.ventas_registros;
+      if (Array.isArray(det) && det.length) {
+        return det
+          .map((v: any) => ({
+            kilos: Number(v.kilos_totales_vendidos ?? v.kilos ?? 0),
+            precio: Number(v.precio_por_kilo ?? v.precio ?? 0),
+            id: v.id_venta ?? v.id ?? undefined,
+          }))
+          .filter((r: any) => Number.isFinite(r.kilos) && Number.isFinite(r.precio));
+      }
+
+      // Fallback: try ventas_por_fecha if it contains average price per kilo (unlikely)
+      const byDate = reporteResumen?.ventas_por_fecha;
+      if (Array.isArray(byDate) && byDate.length) {
+        // If entries include 'kilos_totales_vendidos' and 'precio_por_kilo' use them
+        const rows = byDate
+          .map((v: any) => ({ kilos: Number(v.kilos_totales_vendidos ?? 0), precio: Number(v.precio_por_kilo ?? (v.ingreso_total && v.kilos_totales_vendidos ? v.ingreso_total / v.kilos_totales_vendidos : 0)), id: v.fecha }))
+          .filter((r: any) => r.kilos > 0 && r.precio > 0);
+        return rows;
+      }
+
+      return [] as any[];
+    })();
 
   async function handleGastoSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -573,6 +678,42 @@ export default function Administrative() {
                     </div>
 
                     <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="text-sm font-semibold">Treemap de gastos por tipo</h3>
+                      {treemapData?.length ? (
+                        <ResponsiveContainer width="100%" height={260}>
+                          <Treemap data={treemapData} dataKey="size" nameKey="name" stroke="#ffffff" fill="#60a5fa" />
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay datos de gastos para el treemap.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="text-sm font-semibold">Heatmap de mortalidad (últimos 35 días)</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Intensidad por número de bajas por día.</p>
+                      <div className="mt-3">
+                        <div className="grid grid-cols-7 gap-1">
+                          {mortalidadHeatmap.dates.map((d) => {
+                            const c = mortalidadHeatmap.counts[d] || 0;
+                            const colors = ["#f8fafc", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"];
+                            const idx = Math.min(colors.length - 1, Math.round((c / (mortalidadHeatmap.max || 1)) * (colors.length - 1)));
+                            return (
+                              <div key={d} title={`${d}: ${c} bajas`} className="h-6 w-full rounded-sm" style={{ backgroundColor: colors[idx], border: '1px solid rgba(15,23,42,0.06)' }} />
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2 text-xs">
+                          <span className="text-muted-foreground">Bajas:</span>
+                          <div className="h-3 w-6 bg-[#f8fafc] border border-border" />
+                          <div className="h-3 w-6 bg-[#bfdbfe]" />
+                          <div className="h-3 w-6 bg-[#60a5fa]" />
+                          <div className="h-3 w-6 bg-[#2563eb]" />
+                          <div className="h-3 w-6 bg-[#1e3a8a]" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-card p-4">
                       <h3 className="text-sm font-semibold">Mortalidad por causa</h3>
                       {reporteResumen.mortalidad_por_causa?.length ? (
                         <ResponsiveContainer width="100%" height={260}>
@@ -626,7 +767,70 @@ export default function Administrative() {
                       )}
                     </div>
                   </div>
-                </div>
+
+                  <div className="rounded-2xl border border-border bg-card p-4">
+                    <h3 className="text-sm font-semibold">Ventas: ingreso diario y acumulado</h3>
+                    {ventasConAcumulado?.length ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <ComposedChart data={ventasConAcumulado} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                          <XAxis dataKey="fecha" tick={{ fontSize: 12, fill: '#0f172a' }} tickFormatter={(v: any) => {
+                            try { return new Date(v).toLocaleDateString(); } catch { return String(v); }
+                          }} />
+                          <YAxis tick={{ fill: '#0f172a' }} />
+                          <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a' }} labelFormatter={(l: any) => {
+                            try { return new Date(l).toLocaleDateString(); } catch { return String(l); }
+                          }} formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, 'Ingreso']} />
+                          <Legend verticalAlign="top" align="right" />
+                          <Bar dataKey="ingreso_total" name="Ingreso (día)" barSize={20} fill="#60a5fa" />
+                          <Line dataKey="acumulado" name="Acumulado" stroke="#0ea5a4" strokeWidth={3} dot={false} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No hay datos de ventas disponibles.</p>
+                    )}
+                  </div>
+
+                    <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="text-sm font-semibold">Scatter: Precio por kilo vs Kilos vendidos</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Cada punto es una venta (precio vs kilos).</p>
+                      {scatterData?.length ? (
+                        <ResponsiveContainer width="100%" height={280}>
+                          <ScatterChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                            <XAxis type="number" dataKey="kilos" name="Kilos" unit="kg" tick={{ fill: '#0f172a' }} />
+                            <YAxis type="number" dataKey="precio" name="Precio" unit="$" tick={{ fill: '#0f172a' }} />
+                            <Tooltip cursor={{ strokeDasharray: '3 3' }} formatter={(value: any, name: any) => [typeof value === 'number' ? Number(value).toFixed(2) : value, name]} />
+                            <Legend />
+                            <Scatter name="Venta" data={scatterData} fill="#ef4444" />
+                          </ScatterChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay registros de venta detallados disponibles para el scatter.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="text-sm font-semibold">Gastos por tipo (apilado por lote si está disponible)</h3>
+                      {gastosStackData?.length ? (
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={gastosStackData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                            <XAxis dataKey={gastosStackData[0].lote ? 'lote' : 'grupo'} tick={{ fontSize: 12, fill: '#0f172a' }} />
+                            <YAxis tick={{ fill: '#0f172a' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a' }} formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, 'Monto']} />
+                            <Legend verticalAlign="top" />
+                            {(reporteResumen?.gastos_por_tipo ?? []).map((g: any, idx: number) => (
+                              <Bar key={g.tipo_gasto} dataKey={String(g.tipo_gasto)} stackId="a" fill={["#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#a855f7"][idx % 5]} />
+                            ))}
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay datos de gastos disponibles.</p>
+                      )}
+                    </div>
+
+                  </div>
               ) : (
                 <p className="text-sm text-muted-foreground">El informe no está disponible.</p>
               )}
