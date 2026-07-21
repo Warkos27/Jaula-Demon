@@ -5,8 +5,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { API_URL } from "@/lib/constants";
 import { AlertCircle, ClipboardList, Factory, Package, ShieldAlert } from "lucide-react";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LineChart,
+  Line,
+} from "recharts";
 
 type LoteActivo = {
   id_lote: number;
@@ -43,7 +56,19 @@ type VentaForm = {
   fecha_venta: string;
 };
 
+type ResumenReporte = {
+  lotes_activos?: number;
+  gastos_totales?: number;
+  bajas_totales?: number;
+  total_ingresos?: number;
+  gastos_por_tipo?: Array<{ tipo_gasto: string; monto_total: number }>;
+  mortalidad_por_causa?: Array<{ causa: string; cantidad: number }>;
+  ventas_por_fecha?: Array<{ fecha: string; ingreso_total: number }>;
+  [key: string]: any;
+};
+
 const today = new Date().toISOString().slice(0, 10);
+const ADMIN_API_URL = "https://36gjnb0h5d.execute-api.us-east-2.amazonaws.com";
 
 const fallbackLotes: LoteActivo[] = [
   { id_lote: 12, id_jaula: "Jaula 01", estado: "activo" },
@@ -100,15 +125,17 @@ export default function Administrative() {
     precio_por_kilo: "",
     fecha_venta: today,
   });
+  const [reporteResumen, setReporteResumen] = useState<ResumenReporte | null>(null);
+  const [reporteError, setReporteError] = useState<string | null>(null);
+  const [reporteLoading, setReporteLoading] = useState(true);
 
   useEffect(() => {
     async function loadLotes() {
       try {
-        const res = await fetch(`${API_URL}/lotes?estado=activo`);
+        const res = await fetch(`${ADMIN_API_URL}/lotes/activos`);
         if (res.ok) {
-          const data = await res.json();
-          const activos = Array.isArray(data) ? data.filter((item: any) => item?.estado === "activo") : [];
-          if (activos.length > 0) {
+          const activos = await res.json();
+          if (Array.isArray(activos) && activos.length > 0) {
             setLotes(activos);
             const firstId = activos[0].id_lote?.toString();
             setGastoForm((prev) => ({ ...prev, id_lote: firstId ?? prev.id_lote }));
@@ -126,10 +153,59 @@ export default function Administrative() {
     }
 
     loadLotes();
+    loadReporteResumen();
   }, []);
 
+  async function loadReporteResumen() {
+    setReporteLoading(true);
+    setReporteError(null);
+
+    try {
+      const res = await fetch(`${ADMIN_API_URL}/reportes/resumen`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const reporteNormalizado: ResumenReporte = {
+        ...data,
+        lotes_activos: Number(data.lotes_activos ?? 0),
+        gastos_totales: Number(data.gastos_totales ?? 0),
+        bajas_totales: Number(data.bajas_totales ?? 0),
+        gastos_por_tipo: Array.isArray(data.gastos_por_tipo)
+          ? data.gastos_por_tipo.map((item: any) => ({
+              tipo_gasto: item.tipo_gasto,
+              monto_total: Number(item.monto_total ?? 0),
+            }))
+          : [],
+        mortalidad_por_causa: Array.isArray(data.mortalidad_por_causa)
+          ? data.mortalidad_por_causa.map((item: any) => ({
+              causa: item.causa,
+              cantidad: Number(item.cantidad ?? 0),
+            }))
+          : [],
+        ventas_por_fecha: Array.isArray(data.ventas_por_fecha)
+          ? data.ventas_por_fecha.map((item: any) => ({
+              fecha: item.fecha,
+              ingreso_total: Number(item.ingreso_total ?? 0),
+            }))
+          : [],
+      };
+      if (!reporteNormalizado.total_ingresos) {
+        reporteNormalizado.total_ingresos = reporteNormalizado.ventas_por_fecha?.reduce(
+          (sum, item) => sum + Number(item.ingreso_total ?? 0),
+          0
+        );
+      }
+      setReporteResumen(reporteNormalizado);
+    } catch (error) {
+      setReporteError("No se pudo cargar el informe. Revisa la API de resumen.");
+    } finally {
+      setReporteLoading(false);
+    }
+  }
+
   async function saveToBackend(endpoint: string, payload: Record<string, unknown>) {
-    const res = await fetch(`${API_URL}${endpoint}`, {
+    const res = await fetch(`${ADMIN_API_URL}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -170,11 +246,10 @@ export default function Administrative() {
       toast({ title: "Lote abierto", description: "El nuevo lote quedó registrado correctamente." });
       setLoteForm({ id_jaula: "", cantidad_inicial: "", costo_pollito_unitario: "", fecha_inicio: today });
       setLoadingLotes(true);
-      const res = await fetch(`${API_URL}/lotes?estado=activo`);
+      const res = await fetch(`${ADMIN_API_URL}/lotes/activos`);
       if (res.ok) {
-        const data = await res.json();
-        const activos = Array.isArray(data) ? data.filter((item: any) => item?.estado === "activo") : [];
-        if (activos.length > 0) setLotes(activos);
+        const activos = await res.json();
+        if (Array.isArray(activos) && activos.length > 0) setLotes(activos);
       }
     } catch {
       persistFallback("administrative-lotes", payload);
@@ -263,7 +338,7 @@ export default function Administrative() {
     };
 
     try {
-      await saveToBackend("/ventas", payload);
+      await saveToBackend("/ventas/cerrar", payload);
       toast({ title: "Venta cerrada", description: "El lote se marcó como finalizado y la venta quedó registrada." });
       setVentaForm({ id_lote: ventaForm.id_lote, kilos_totales_vendidos: "", precio_por_kilo: "", fecha_venta: today });
     } catch {
@@ -306,6 +381,7 @@ export default function Administrative() {
           <TabsTrigger value="gasto">Gastos</TabsTrigger>
           <TabsTrigger value="mortalidad">Mortalidad</TabsTrigger>
           <TabsTrigger value="venta">Cierre / Venta</TabsTrigger>
+          <TabsTrigger value="resumen">Resumen</TabsTrigger>
         </TabsList>
 
         <TabsContent value="lote">
@@ -421,6 +497,113 @@ export default function Administrative() {
                 </div>
                 <Button type="submit" disabled={submitting}>{submitting ? "Guardando..." : "Guardar mortalidad"}</Button>
               </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="resumen">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Resumen administrativo</CardTitle>
+                  <CardDescription>Visualiza los datos de lotes, gastos y mortalidad desde tu backend administrativo.</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={loadReporteResumen} disabled={reporteLoading}>
+                  {reporteLoading ? "Actualizando..." : "Refrescar resumen"}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {reporteLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando resumen...</p>
+              ) : reporteError ? (
+                <p className="text-sm text-destructive">{reporteError}</p>
+              ) : reporteResumen ? (
+                <div className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+                      <p className="text-muted-foreground">Lotes activos</p>
+                      <p className="mt-2 text-2xl font-bold">{reporteResumen.lotes_activos ?? "-"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+                      <p className="text-muted-foreground">Gastos totales</p>
+                      <p className="mt-2 text-2xl font-bold">{reporteResumen.gastos_totales?.toFixed(2) ?? "-"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+                      <p className="text-muted-foreground">Ingresos totales</p>
+                      <p className="mt-2 text-2xl font-bold">{reporteResumen.total_ingresos?.toFixed(2) ?? "-"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+                      <p className="text-muted-foreground">Bajas totales</p>
+                      <p className="mt-2 text-2xl font-bold">{reporteResumen.bajas_totales ?? "-"}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="text-sm font-semibold">Gastos por tipo</h3>
+                      {reporteResumen.gastos_por_tipo?.length ? (
+                        <ResponsiveContainer width="100%" height={260}>
+                          <PieChart>
+                            <Pie
+                              data={reporteResumen.gastos_por_tipo}
+                              dataKey="monto_total"
+                              nameKey="tipo_gasto"
+                              outerRadius={90}
+                              innerRadius={40}
+                              paddingAngle={3}
+                            >
+                              {reporteResumen.gastos_por_tipo.map((entry, index) => (
+                                <Cell key={entry.tipo_gasto} fill={["#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#a855f7"][index % 5]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, "Monto"]} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay datos de gastos disponibles.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="text-sm font-semibold">Mortalidad por causa</h3>
+                      {reporteResumen.mortalidad_por_causa?.length ? (
+                        <ResponsiveContainer width="100%" height={260}>
+                          <BarChart data={reporteResumen.mortalidad_por_causa} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                            <XAxis dataKey="causa" tick={{ fontSize: 12 }} />
+                            <YAxis />
+                            <Tooltip formatter={(value: any) => [value ?? 0, "Bajas"]} />
+                            <Bar dataKey="cantidad" fill="#22c55e" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay datos de mortalidad disponibles.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="text-sm font-semibold">Ventas por fecha</h3>
+                      {reporteResumen.ventas_por_fecha?.length ? (
+                        <ResponsiveContainer width="100%" height={260}>
+                          <LineChart data={reporteResumen.ventas_por_fecha} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                            <XAxis dataKey="fecha" tick={{ fontSize: 12 }} />
+                            <YAxis />
+                            <Tooltip formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, "Ingreso"]} />
+                            <Line type="monotone" dataKey="ingreso_total" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay datos de ventas disponibles.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">El informe no está disponible.</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
