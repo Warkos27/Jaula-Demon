@@ -12,6 +12,7 @@ import {
   Pie,
   Cell,
   Tooltip,
+  Legend,
   BarChart,
   Bar,
   XAxis,
@@ -546,6 +547,7 @@ export default function Administrative() {
                       {reporteResumen.gastos_por_tipo?.length ? (
                         <ResponsiveContainer width="100%" height={260}>
                           <PieChart>
+                            <Legend verticalAlign="bottom" height={36} />
                             <Pie
                               data={reporteResumen.gastos_por_tipo}
                               dataKey="monto_total"
@@ -558,7 +560,11 @@ export default function Administrative() {
                                 <Cell key={entry.tipo_gasto} fill={["#22c55e", "#f59e0b", "#ef4444", "#3b82f6", "#a855f7"][index % 5]} />
                               ))}
                             </Pie>
-                            <Tooltip formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, "Monto"]} />
+                            <Tooltip
+                              formatter={(value: any, name?: any) => [`$${Number(value || 0).toFixed(2)}`, String(name ?? 'Monto')]}
+                              labelFormatter={(label) => `Tipo: ${label}`}
+                              contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a' }}
+                            />
                           </PieChart>
                         </ResponsiveContainer>
                       ) : (
@@ -572,9 +578,9 @@ export default function Administrative() {
                         <ResponsiveContainer width="100%" height={260}>
                           <BarChart data={reporteResumen.mortalidad_por_causa} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                            <XAxis dataKey="causa" tick={{ fontSize: 12 }} />
-                            <YAxis />
-                            <Tooltip formatter={(value: any) => [value ?? 0, "Bajas"]} />
+                            <XAxis dataKey="causa" tick={{ fontSize: 12, fill: '#0f172a' }} />
+                            <YAxis tick={{ fill: '#0f172a' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a' }} formatter={(value: any) => [value ?? 0, 'Bajas']} />
                             <Bar dataKey="cantidad" fill="#22c55e" />
                           </BarChart>
                         </ResponsiveContainer>
@@ -589,9 +595,29 @@ export default function Administrative() {
                         <ResponsiveContainer width="100%" height={260}>
                           <LineChart data={reporteResumen.ventas_por_fecha} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                            <XAxis dataKey="fecha" tick={{ fontSize: 12 }} />
-                            <YAxis />
-                            <Tooltip formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, "Ingreso"]} />
+                            <XAxis
+                              dataKey="fecha"
+                              tick={{ fontSize: 12, fill: '#0f172a' }}
+                              tickFormatter={(value: any) => {
+                                try {
+                                  return new Date(value).toLocaleDateString();
+                                } catch {
+                                  return String(value);
+                                }
+                              }}
+                            />
+                            <YAxis tick={{ fill: '#0f172a' }} />
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a' }}
+                              formatter={(value: any) => [`$${Number(value || 0).toFixed(2)}`, 'Ingreso']}
+                              labelFormatter={(label: any) => {
+                                try {
+                                  return new Date(label).toLocaleDateString();
+                                } catch {
+                                  return String(label);
+                                }
+                              }}
+                            />
                             <Line type="monotone" dataKey="ingreso_total" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                           </LineChart>
                         </ResponsiveContainer>

@@ -10,5 +10,9 @@
     "lucide-react": "^1.24.0",
     "react-router-dom": "^7.18.1",
     "recharts": "^3.9.2"
+  },
+  "scripts": {
+    "seed-admin-data": "python3 seed-admin-data.py",
+    "install-frontend": "cd frontend-react && npm install"
   }
 }
