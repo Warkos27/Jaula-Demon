@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import {
   TrendingUp,
-  TrendingDown,
   ShoppingCart,
   Users,
   DollarSign,
@@ -15,8 +14,6 @@ import {
   Lightbulb,
 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -28,6 +25,7 @@ import {
   AreaChart,
   Area,
   ComposedChart,
+  Bar,
 } from "recharts";
 
 // === DATOS DE VENTAS EN USD ===

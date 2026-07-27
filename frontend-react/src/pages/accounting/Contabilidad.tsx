@@ -8,13 +8,10 @@ import {
   Skull,
   Package,
   Pill,
-  Zap,
-  Droplets,
-  Wheat,
-  Wrench,
   Receipt,
   PiggyBank,
   Lightbulb,
+  Wheat,
 } from "lucide-react";
 import {
   BarChart,

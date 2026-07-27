@@ -17,8 +17,6 @@ import {
   Brain,
 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -29,11 +27,10 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  LineChart,
-  Line,
   Legend,
   ComposedChart,
   Area,
+  Line,
 } from "recharts";
 import { useState } from "react";
 
