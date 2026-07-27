@@ -15,3 +15,4 @@ const BlogRoutes = () => (
 );
 
 export default BlogRoutes;
+blog-routes.tsx
