@@ -98,8 +98,17 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard de Monitoreo</h1>
           <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Conectado a DynamoDB (Datos Reales)
+              {navigator.onLine ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  Conectado a AWS DynamoDB (Nube)
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  Conectado a PostgreSQL (Modo Local Seguro)
+                </>
+              )}
           </p>
         </div>
 

@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { generateHistoricalData } from "@/lib/api";
-import { SENSOR_INFO, SENSOR_THRESHOLDS } from "@/lib/constants";
+import { SENSOR_INFO, SENSOR_THRESHOLDS, SensorReading } from "@/lib/constants";
 import {
   LineChart,
   Line,
@@ -13,31 +13,65 @@ import {
   Area,
   AreaChart,
 } from "recharts";
+import { Loader2 } from "lucide-react"; // Importamos un ícono de carga
 
 export default function History() {
   const [selectedSensor, setSelectedSensor] = useState(0);
   const [timeRange, setTimeRange] = useState(24);
+  
+  // Nuevos estados para manejar los datos asíncronos de la base de datos
+  const [historicalData, setHistoricalData] = useState<Array<{ time: string; readings: SensorReading[] }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const historicalData = useMemo(() => generateHistoricalData(timeRange), [timeRange]);
+  // useEffect para cargar los datos cada vez que cambie el rango de horas
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchData = async () => {
+      setIsLoading(true);
+      const data = await generateHistoricalData(timeRange);
+      if (isMounted) {
+        setHistoricalData(data);
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [timeRange]);
+
   const sensor = SENSOR_INFO[selectedSensor];
   const threshold = SENSOR_THRESHOLDS[sensor.name];
 
-  const chartData = historicalData.map((d) => ({
-    time: d.time,
-    value: d.readings.find((r) => r.id_sensor === sensor.id)?.valor || 0,
-  }));
+  // Filtramos los datos solo para el sensor seleccionado
+  const chartData = useMemo(() => {
+    return historicalData.map((d) => ({
+      time: d.time,
+      value: d.readings.find((r) => r.id_sensor === sensor.id)?.valor || 0,
+    }));
+  }, [historicalData, sensor.id]);
 
-  const avgValue = chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length;
-  const maxValue = Math.max(...chartData.map((d) => d.value));
-  const minValue = Math.min(...chartData.map((d) => d.value));
+  // Cálculos seguros por si el arreglo viene vacío
+  const avgValue = chartData.length > 0 
+    ? chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length 
+    : 0;
+  const maxValue = chartData.length > 0 ? Math.max(...chartData.map((d) => d.value)) : 0;
+  const minValue = chartData.length > 0 ? Math.min(...chartData.map((d) => d.value)) : 0;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Historial de Sensores</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Datos históricos y tendencias de los sensores
+          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+            {navigator.onLine ? (
+              <><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Datos Históricos AWS</>
+            ) : (
+              <><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" /> Historial Local (PostgreSQL)</>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -94,69 +128,79 @@ export default function History() {
           </div>
         </div>
 
-        <div className="h-64 sm:h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id={`gradient-${sensor.id}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={sensor.color} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={sensor.color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 15% 15%)" />
-              <XAxis
-                dataKey="time"
-                stroke="hsl(215 20% 45%)"
-                fontSize={10}
-                tickLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                stroke="hsl(215 20% 45%)"
-                fontSize={10}
-                tickLine={false}
-                domain={["auto", "auto"]}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(220 20% 10%)",
-                  border: "1px solid hsl(220 15% 20%)",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-                labelStyle={{ color: "hsl(210 40% 96%)" }}
-              />
-              {threshold && (
-                <>
-                  <ReferenceLine
-                    y={threshold.max}
-                    stroke="#f59e0b"
-                    strokeDasharray="4 4"
-                    strokeWidth={1}
-                    label={{ value: `Máx: ${threshold.max}`, position: "right", fontSize: 10, fill: "#f59e0b" }}
-                  />
-                  {threshold.dangerMax && (
+        <div className="h-64 sm:h-80 relative flex items-center justify-center">
+          {isLoading ? (
+             <div className="flex flex-col items-center gap-2 text-muted-foreground">
+               <Loader2 className="w-8 h-8 animate-spin text-primary" />
+               <p className="text-sm">Consultando base de datos...</p>
+             </div>
+          ) : chartData.length === 0 ? (
+             <p className="text-sm text-muted-foreground">No hay datos históricos en este rango de tiempo.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={`gradient-${sensor.id}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={sensor.color} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={sensor.color} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 15% 15%)" />
+                <XAxis
+                  dataKey="time"
+                  stroke="hsl(215 20% 45%)"
+                  fontSize={10}
+                  tickLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  stroke="hsl(215 20% 45%)"
+                  fontSize={10}
+                  tickLine={false}
+                  domain={["auto", "auto"]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(220 20% 10%)",
+                    border: "1px solid hsl(220 15% 20%)",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                  }}
+                  labelStyle={{ color: "hsl(210 40% 96%)" }}
+                  formatter={(value: any) => [`${Number(value).toFixed(2)} ${sensor.unit}`, sensor.name]}
+                />
+                {threshold && (
+                  <>
                     <ReferenceLine
-                      y={threshold.dangerMax}
-                      stroke="#ef4444"
+                      y={threshold.max}
+                      stroke="#f59e0b"
                       strokeDasharray="4 4"
                       strokeWidth={1}
-                      label={{ value: `Peligro: ${threshold.dangerMax}`, position: "right", fontSize: 10, fill: "#ef4444" }}
+                      label={{ value: `Máx: ${threshold.max}`, position: "right", fontSize: 10, fill: "#f59e0b" }}
                     />
-                  )}
-                </>
-              )}
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke={sensor.color}
-                strokeWidth={2}
-                fill={`url(#gradient-${sensor.id})`}
-                dot={false}
-                activeDot={{ r: 4, fill: sensor.color }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+                    {threshold.dangerMax && (
+                      <ReferenceLine
+                        y={threshold.dangerMax}
+                        stroke="#ef4444"
+                        strokeDasharray="4 4"
+                        strokeWidth={1}
+                        label={{ value: `Peligro: ${threshold.dangerMax}`, position: "right", fontSize: 10, fill: "#ef4444" }}
+                      />
+                    )}
+                  </>
+                )}
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke={sensor.color}
+                  strokeWidth={2}
+                  fill={`url(#gradient-${sensor.id})`}
+                  dot={false}
+                  activeDot={{ r: 4, fill: sensor.color }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
@@ -166,36 +210,6 @@ export default function History() {
         <StatCard label="Promedio" value={avgValue.toFixed(1)} unit={sensor.unit} color="#3b82f6" />
         <StatCard label="Máximo" value={maxValue.toFixed(1)} unit={sensor.unit} color="#ef4444" />
         <StatCard label="Mínimo" value={minValue.toFixed(1)} unit={sensor.unit} color="#06b6d4" />
-      </div>
-
-      {/* All sensors mini charts */}
-      <div className="rounded-xl border bg-card p-5 opacity-0 animate-slide-up stagger-4">
-        <h3 className="text-sm font-semibold text-foreground mb-4">Vista General - Todos los Sensores</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {SENSOR_INFO.map((s) => {
-            const sData = historicalData.map((d) => ({
-              time: d.time,
-              value: d.readings.find((r) => r.id_sensor === s.id)?.valor || 0,
-            }));
-            return (
-              <div key={s.id} className="p-3 rounded-lg bg-secondary/30">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-muted-foreground">{s.name}</span>
-                  <span className="text-xs font-semibold tabular-nums" style={{ color: s.color }}>
-                    {sData[sData.length - 1]?.value.toFixed(1)}{s.unit}
-                  </span>
-                </div>
-                <div className="h-16">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={sData.slice(-20)}>
-                      <Line type="monotone" dataKey="value" stroke={s.color} strokeWidth={1.5} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );
