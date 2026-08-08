@@ -2,37 +2,76 @@
 
 ## Requisitos
 
-- Node.js (para la interfaz React)
-- Python 3 (para el script de datos de prueba)
+- Node.js + npm
+- Python 3
+- Docker / docker compose (opcional, pero recomendado para la DB y MQTT)
 
-## Instalación
+## ¿Necesitas VM?
 
-Instala las dependencias del frontend:
+No. Puedes correr el proyecto en tu máquina local.
+No es necesario crear una máquina virtual solo para este proyecto.
+
+## Qué instala cada parte
+
+- `frontend-react` contiene la app React/Vite.
+- `frontend-react/backend-local` contiene el backend Node que usa PostgreSQL y MQTT.
+- `frontend-react/infraestructura/docker-compose.yml` monta:
+  - PostgreSQL en `localhost:5432`
+  - Mosquitto MQTT en `localhost:1883`
+
+## Instalación rápida
+
+1. Instala dependencias del frontend:
 
 ```bash
 npm run install-frontend
 ```
 
-Esto ejecuta `npm install` dentro de `frontend-react`.
+2. Instala dependencias del backend local:
 
-## Ejecutar la aplicación
+```bash
+cd frontend-react/backend-local
+npm install
+```
 
-Desde el directorio raíz:
+3. Levanta la infraestructura de Docker (DB + MQTT):
+
+```bash
+cd frontend-react
+docker compose up -d
+```
+
+4. Inicia el backend local:
+
+```bash
+cd frontend-react/backend-local
+node index.js
+```
+
+5. Inicia el frontend:
 
 ```bash
 cd frontend-react
 npm run dev
 ```
 
-## Generar datos de prueba
+## Archivo de entorno
 
-El script de datos de prueba usa solo la biblioteca estándar de Python, por lo que no necesita paquetes adicionales.
+- `frontend-react/backend-local/.env` ya incluye `DB_PASSWORD=adminpassword`.
+- Si falta, crea el archivo con ese valor.
+
+## Nota importante sobre Docker
+
+El Docker actual solo levanta la base de datos y el broker MQTT.
+No levanta la app React ni el backend Node. Es decir:
+
+- Docker yes: PostgreSQL + MQTT
+- Docker no: React y backend Node deben arrancarse con `npm run dev` y `node index.js`
+
+## Generar datos de prueba
 
 ```bash
 npm run seed-admin-data
 ```
 
-## Notas
-
-- El script `seed-admin-data` crea lotes activos, registros de gastos, mortalidad y ventas.
-- Si bajas el repositorio nuevo, ejecuta primero `npm run install-frontend` y luego `npm run seed-admin-data`.
+El script usa solo Python estándar.
