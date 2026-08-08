@@ -57,8 +57,8 @@ npm run dev
 
 ## Archivo de entorno
 
-- `frontend-react/backend-local/.env` ya incluye `DB_PASSWORD=adminpassword`.
-- Si falta, crea el archivo con ese valor.
+- `frontend-react/backend-local/.env` debe contener la variable `DB_PASSWORD`.
+- Si falta, copia `frontend-react/backend-local/.env.example` y edita el valor localmente (cada desarrollador rellena su `.env`).
 
 ## Nota importante sobre Docker
 
