@@ -1,7 +1,7 @@
 import { API_URL, JaulaData, SensorReading } from "./constants";
 
 // Definimos la ruta de tu nuevo cerebro local
-const LOCAL_API_URL = "http://localhost:3000/api";
+const LOCAL_API_URL = "http://192.168.4.4:3000/api";
 
 // Función 1: Obtener la configuración ideal según la Etapa del pollo
 export async function fetchConfiguracionEtapa(etapa: string) {
@@ -22,33 +22,42 @@ export async function fetchLatestReadings(jaulaId: number = 1): Promise<JaulaDat
   try {
     let response;
     let isLocal = false;
+    let rawData;
 
-    // Lógica Híbrida: Verificamos el estado de red del navegador
+    // 1. Lógica Híbrida: Verificamos si hay red
     if (navigator.onLine) {
       try {
-        // Intentamos ir a AWS primero con un límite de tiempo (3 segundos)
+        // Intentamos ir a AWS primero (Límite de 3 segundos)
         response = await fetch(`${API_URL}/lecturas?jaula=${jaulaId}`, { signal: AbortSignal.timeout(3000) });
         if (!response.ok) throw new Error("AWS respondió con error");
+        
+        rawData = await response.json();
+        
+        // EL TRUCO: Si AWS responde bien, pero está VACÍO, forzamos el error para ir a tu Local
+        if (Array.isArray(rawData) && rawData.length === 0) {
+          throw new Error("AWS está vacío en este momento");
+        }
+        
       } catch (e) {
-        // Si hay internet pero AWS se cayó o tarda mucho, activamos el plan B local
-        console.warn("⚠️ AWS inalcanzable, cambiando a servidor local...");
+        // Si no hay internet, AWS se cayó o está vacío, ACTIVAMOS EL PLAN B LOCAL
+        console.warn("⚠️ AWS vacío o inalcanzable, cambiando a servidor local (PostgreSQL)...");
         response = await fetch(`${LOCAL_API_URL}/sensores/actual`);
+        rawData = await response.json();
         isLocal = true;
       }
     } else {
-      // Sin internet, vamos directo al plan B
+      // Sin internet total, vamos directo al plan B
       console.log("🔌 Sin internet. Operando en modo Offline con servidor local.");
       response = await fetch(`${LOCAL_API_URL}/sensores/actual`);
+      rawData = await response.json();
       isLocal = true;
     }
 
-    if (!response?.ok) return null;
+    if (!response?.ok || !rawData) return null;
 
-    const rawData = await response.json();
-
-    // Transformamos los datos según quién respondió (Local o AWS)
+    // 2. Transformamos los datos para que React los entienda
     if (isLocal) {
-      // Estructura de PostgreSQL Local
+      // Estructura de tu PostgreSQL Local
       const lecturasFormateadas: SensorReading[] = [
         { id_sensor: 1, nombre: "Temperatura", valor: Number(rawData.temperatura), unidad: "°C" },
         { id_sensor: 2, nombre: "Humedad", valor: Number(rawData.humedad), unidad: "%" },
@@ -63,14 +72,10 @@ export async function fetchLatestReadings(jaulaId: number = 1): Promise<JaulaDat
       let finalData = rawData;
       if (Array.isArray(rawData) && rawData.length > 0) {
         finalData = rawData[rawData.length - 1]; 
-      } else if (Array.isArray(rawData) && rawData.length === 0) {
-        return null; 
       }
 
       const lecturasFinales = finalData.datos_sensores || finalData.lecturas;
-      if (!lecturasFinales || lecturasFinales.length === 0) {
-        return null;
-      }
+      if (!lecturasFinales || lecturasFinales.length === 0) return null;
       
       return { 
         id_jaula: jaulaId, 
@@ -80,7 +85,7 @@ export async function fetchLatestReadings(jaulaId: number = 1): Promise<JaulaDat
     }
     
   } catch (error) {
-    console.error("❌ Fallo crítico: Ni la nube ni el servidor local están respondiendo.", error);
+    console.error("❌ Fallo crítico: Ni AWS ni Local están respondiendo.", error);
     return null; 
   }
 }

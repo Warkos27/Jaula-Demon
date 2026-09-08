@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Pool } = require('pg');
 
 // Conexión a tu PostgreSQL local en Docker
@@ -5,7 +6,7 @@ const pool = new Pool({
   user: 'admin',
   host: 'localhost',
   database: 'don_pollito_local',
-  password: DB_PASSWORD,
+  password: process.env.DB_PASSWORD,
   port: 5432,
 });
 

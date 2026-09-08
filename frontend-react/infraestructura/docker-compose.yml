@@ -24,7 +24,7 @@ services:
       - "1883:1883" # Puerto para los sensores (ESP32/Arduino)
       - "9001:9001" # Puerto WebSockets para conectar tu React directamente si lo necesitas
     volumes:
-      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto.conf:/mosquitto/config   # <-- AQUÍ ESTÁ EL CAMBIO
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
 
