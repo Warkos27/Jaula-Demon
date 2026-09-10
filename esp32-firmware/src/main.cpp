@@ -9,7 +9,7 @@
 // ==========================================
 const char* ssid = "JaulaDemon_Red";            
 const char* pass = "pollitos123";                   
-const char* mqtt_server = "192.168.4.3";    
+const char* mqtt_server = "192.168.4.4";    
 
 // ==========================================
 // 2. CONFIGURACIÓN DE SENSORES

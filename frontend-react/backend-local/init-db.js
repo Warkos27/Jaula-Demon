@@ -21,16 +21,17 @@ const crearTablas = async () => {
     );
 
     -- 2. Tabla del historial de sensores (Lo que viene del MQTT)
-    CREATE TABLE IF NOT EXISTS lecturas_sensores (
-        id SERIAL PRIMARY KEY,
-        lote_id INTEGER REFERENCES lotes(id),
-        temperatura DECIMAL(5,2),
-        humedad DECIMAL(5,2),
-        luminosidad DECIMAL(5,2),
-        amoniaco DECIMAL(5,2),
-        co2 DECIMAL(7,2),
-        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+CREATE TABLE IF NOT EXISTS lecturas_sensores (
+    id SERIAL PRIMARY KEY,
+    lote_id INTEGER REFERENCES lotes(id),
+    temperatura DECIMAL(5,2),
+    humedad DECIMAL(5,2),
+    luminosidad DECIMAL(5,2),
+    amoniaco DECIMAL(5,2),
+    co2 DECIMAL(7,2),
+    sincronizado_nube BOOLEAN DEFAULT FALSE,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
     -- 3. Tabla para el módulo Administrativo y Contable
     CREATE TABLE IF NOT EXISTS contabilidad (
